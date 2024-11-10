@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>UB Hacking | WonderMap</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Faculty+Glyphic&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css')}}">
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+<script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script> 
+</head>
+<body>
+
+    <canvas style="z-index: 500;position: absolute;top: 0;left: 0;" id="confettiCanvas"></canvas>
+
+    <div id="map"></div>
+
+    <div class="chatbar" id="openedChat">
+        <div class="chat_header">
+            <div class="header_left">
+                <div class="alice_box">
+                    <img width="50" src="{{url_for ('static', filename='alice.png')}}" alt="">
+                </div>
+                <span id="alice_name">
+                    AliceAI
+                </span>
+                
+                <div class="loader_ctn" id="loader">
+                    <div class="loader">
+                        <div class="duo duo1">
+                          <div class="dot dot-a"></div>
+                          <div class="dot dot-b"></div>
+                        </div>
+                        <div class="duo duo2">
+                          <div class="dot dot-a"></div>
+                          <div class="dot dot-b"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div onclick="toggleChat('close')" style="cursor: pointer;padding:10px">
+                <img width="15px" src="{{ url_for('static', filename='close_icon.svg') }}">
+            </div>
+        </div>
+        <div id="chat_history" class="chat_history">
+
+            <div class="chat_message alice-message">
+                Welcome to the WonderfulMap of UB! I’m Alice, and I’ll be your guide through this curious land. Choose your adventure: <i>Wonder Quest</i> to hunt hidden treasures in the campus, or <i>Magic Tour</i> to find your way?
+            </div>
+        </div> 
+
+        <div class="loader_ctn" id="loader">
+            <div class="loader">
+                <div class="duo duo1">
+                  <div class="dot dot-a"></div>
+                  <div class="dot dot-b"></div>
+                </div>
+                <div class="duo duo2">
+                  <div class="dot dot-a"></div>
+                  <div class="dot dot-b"></div>
+                </div>
+            </div>
+        </div>
+        <div class="search">
+            <div class="input-wrapper">
+                <input type="text" id="message" placeholder="Ask me anything...">
+                <div onclick="sendMessage()">
+                    <img class="send_button" src="{{url_for('static', filename='send.svg')}}" width="15" alt="" srcset="">
+                </div>
+            </div>
+            <div class="prompt" onclick="giveIdeas()">
+                <span>
+                    <img width="12" src="{{url_for('static', filename='sparkles.svg')}}" alt="">
+                </span>
+                Give me some ideas
+            </div>
+        </div>
+    </div>
+
+    <dotlottie-player id="orb" src="https://lottie.host/255fefc5-99d5-4b99-b3bb-8782d6af354d/HjH0ga3Nok.json" background="transparent" speed="1" loop autoplay></dotlottie-player>
+    <div class="alice-ai" id="closedChat" onclick="toggleChat('open')">
+
+        <div style="position: relative;">
+            <div class="alice_box">
+                <img width="70" src="{{url_for ('static', filename='alice.png')}}" alt="">
+            </div>
+            <!-- <div class="bubble bubble-bottom-left" contenteditable>Ready to start?</div> -->
+        </div>
+    </div>
+
+<script>
+
+    // ## Mapbox ##
+	mapboxgl.accessToken = 'pk.eyJ1Ijoic2FtbXl1ZG0iLCJhIjoiY20zNjJtMHJtMDB5czJqcHBjazZqYTByNiJ9.bUBqxmfZ7uXsBw_cGOmS8A';
+    const map = (window.map = new mapboxgl.Map({
+        container: 'map',
+        center: [-78.787472, 43.001529],
+        zoom: 15.27,
+        pitch: 42,
+        bearing: -50,
+        style: 'mapbox://styles/mapbox/standard',
+        minZoom: 15
+    }));
+
+    map.on('style.load', () => {
+        map.setConfigProperty('basemap', 'lightPreset', 'dusk');
+
+        map.addSource('model', {
+            'type': 'geojson',
+            'data': {
+                'type': 'Feature',
+                'properties': {
+                    'model-uri':
+                        'https://docs.mapbox.com/mapbox-gl-js/assets/tower.glb'
+                },
+                'geometry': {
+                    'coordinates': [-0.12501974, 51.5332374],
+                    'type': 'Point'
+                }
+            }
+        });
+
+        map.addLayer({
+            'id': 'tower',
+            'type': 'model',
+            'slot': 'middle',
+            'source': 'model',
+            'minzoom': 15,
+            'layout': {
+                'model-id': ['get', 'model-uri']
+            },
+            'paint': {
+                'model-opacity': 1,
+                'model-rotation': [0.0, 0.0, 35.0],
+                'model-scale': [0.8, 0.8, 1.2],
+                'model-color-mix-intensity': 0,
+                'model-cast-shadows': true,
+                'model-emissive-strength': 0.8
+            }
+        });
+    });
+
+    map.on('load', () => {
+        map.addLayer({
+            'id': 'route',
+            'type': 'line',
+            'source': {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates':[]
+                    }
+                }
+            },
+            'layout': {
+                'line-join': 'round',
+                'line-cap': 'round'
+            },
+            'paint': {
+                'line-color': '#CDC4FF',
+                'line-emissive-strength': 1,
+                'line-width': 8,
+                'line-opacity':1
+            }
+        });
+    })
+    // ## END Mapbox ##
+
+
+    // ## Variables ##
+    let history = document.getElementById("chat_history");
+    const myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
+    let gamestate = [];
+    const characters ='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const sessionId = generateString(8);
+
+
+
+    // ## Utils Functions ##
+    document.onkeydown=function(){
+        if(window.event.keyCode=='13'){
+            sendMessage();
+        }
+    }
+    function interpolate(p1, p2, t) {
+      // Interpolate between two points (p1 and p2) at fraction t (0 <= t <= 1)
+      return [
+        p1[0] + (p2[0] - p1[0]) * t, // Interpolating longitude
+        p1[1] + (p2[1] - p1[1]) * t  // Interpolating latitude
+      ];
+    }
+    function toggleChat(openClose){
+        document.getElementById("openedChat").classList.toggle("hide");
+        if(openClose == "close"){
+            document.getElementById("closedChat").style.display = "block";
+            document.getElementById("orb").style.display = "block";
+        }
+        else{
+            document.getElementById("closedChat").style.display = "none";
+            document.getElementById("orb").style.display = "none";
+        }
+    }
+    function scrollDown(){
+        history.scrollTop = history.scrollHeight;
+    }
+    scrollDown();
+    function generateString(length) {
+        let result = '';
+        const charactersLength = characters.length;
+        for ( let i = 0; i < length; i++ ) {
+            result += characters.charAt(Math.floor(Math.random() * charactersLength));
+        }
+        return result;
+    }
+
+    // ## END Utils Functions ##
+
+
+    // ## Chat Functions ##
+    function createMessage(message, isRabbit=false){
+        let div = document.createElement("div");
+        let divMessage = document.createElement("div");
+        div.className = "chat_message_box";
+        divMessage.className = "chat_message";
+        if(isRabbit){
+            divMessage.className += " alice-message";
+            divMessage.id = "last_message";
+        }
+        divMessage.innerHTML = message;
+        div.append(divMessage);
+        history.append(div);
+        scrollDown();
+    }
+    function sendMessage(){
+        let message =document.getElementById("message"); 
+        if(message.value){
+            createMessage(message.value);
+            sendMessageBack(message.value);
+        }
+        message.value = "";
+    }
+    async function sendMessageBack(message){
+        document.getElementById("message").disabled=true; // Disable Input to avoid spam entries
+
+        // Loader Logic
+        document.getElementById("loader").style.display = "block";
+        document.getElementById("alice_name").innerHTML = "Alice is writing";
+        setTimeout(() => {
+            createMessage("Alice is writing<span class='dots'></span>", true);
+        }, 500);
+
+        // Send Post Request to back end
+        const response = await fetch("/api/message", {
+            method: "POST",
+            body: JSON.stringify({message: message, session:sessionId}),
+            headers: myHeaders,
+        });
+        message = await response.json();
+        document.getElementById("message").disabled=false;
+        document.getElementById("loader").style.display = "none";
+        document.getElementById("alice_name").innerHTML = "AliceAI";
+
+        if(message.path){
+            toggleChat("close");
+            routeAnimation(message.path);
+            document.getElementById("last_message").remove()
+        }
+        else{
+            let firstWord = message.message.split(" ")[0];
+            if(["Great!", "Congrats!", "Exactly!"].includes(firstWord)){
+                if(!gamestate.includes(firstWord)){
+                    gamestate.push(firstWord);
+                }
+            }
+            if(gamestate.length == 3){
+                launchConfetti();
+            }
+            document.getElementById("last_message").innerHTML = `<span>${message.message}</span>`;
+            document.getElementById("last_message").removeAttribute("id");
+            scrollDown();
+        }
+    }
+    // ## END Chat Functions ##
+
+    // Route Path Animation
+    function routeAnimation(path){
+        let currentIndex = 0;
+        let progress = 0;
+        function animate() {
+            if (currentIndex < path.length - 1) {
+                // Interpolate between current point and the next point based on progress
+                const p1 = path[currentIndex];
+                const p2 = path[currentIndex + 1];
+                const interpolatedPoint = interpolate(p1, p2, progress);
+
+                // Update the line's coordinates
+                const newCoordinates = path.slice(0, currentIndex + 1);
+                newCoordinates.push(interpolatedPoint);
+
+                map.getSource('route').setData({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: newCoordinates
+                    }
+                });
+                // Update progress for smooth animation
+                progress += 0.06;  // Control speed by adjusting this increment
+                if (progress >= 1) {
+                progress = 0;
+                currentIndex++;  // Move to the next segment
+                }
+                // Continue the animation
+                requestAnimationFrame(animate);
+            }
+        }
+        animate();
+    }
+
+
+    // ## Generate Prompt Ideas ##
+    const ideas = [
+        "What is the first enigma?",
+        "Who are you ?",
+        "What do I need to do?",
+        "How can I go from Capen to Davis?",
+        "How can I go to Alumni Arena?"
+    ]
+    let currentIdea = 0;
+
+    function giveIdeas(){
+        document.getElementById("message").value = ideas[currentIdea];
+        currentIdea += 1;
+        if (currentIdea > ideas.length-1){
+            currentIdea = 0;
+        }
+    }
+    // ## END Generate Prompt Ideas
+
+    function launchConfetti() {
+        // Get the canvas and its context
+        const canvas = document.getElementById('confettiCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas dimensions
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Confetti particle properties
+        class Confetti {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 5 + 5; // Random size between 10 and 20
+                this.speedX = Math.random() * 6 - 3; // Random speed in X direction
+                this.speedY = Math.random() * 6 + 3; // Random speed in Y direction
+                this.color = `hsl(${Math.random() * 360}, 100%, 50%)`; // Random color
+            }
+
+            // Update the particle position
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.speedY += 0.05; // Gravity effect
+            }
+
+            // Draw the particle
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+        }
+
+        let generationCount = 0; // Track the number of generations
+        const maxGenerations = 3; // Set the number of generations (3)
+
+        // Create confetti particles array
+        let confettiArray = [];
+        
+        // Function to generate new confetti particles
+        function createConfetti() {
+            confettiArray = [];
+            for (let i = 0; i < 100; i++) {
+                confettiArray.push(new Confetti(window.innerWidth / 2, 0));
+            }
+        }
+
+        // Animation loop
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Update and draw all confetti particles
+            for (let i = 0; i < confettiArray.length; i++) {
+                confettiArray[i].update();
+                confettiArray[i].draw();
+            }
+
+            // Check if all confetti particles have fallen off the screen
+            const allFallen = confettiArray.every(particle => particle.y > canvas.height);
+
+            // If all particles have fallen, increment generation count
+            if (allFallen) {
+                generationCount++;
+                
+                if (generationCount < maxGenerations) {
+                    // After each generation, reset confetti particles and restart animation
+                    createConfetti();
+                } else {
+                    canvas.style.display = "none";
+                    return; // Stop the animation
+                }
+            }
+
+            // Continue the animation
+            requestAnimationFrame(animate);
+        }
+
+        // Start a new generation of confetti
+        createConfetti();
+
+        // Start the animation
+        animate();
+    }
+</script>
+
+</body>
+</html>
